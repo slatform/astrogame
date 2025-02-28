@@ -7,11 +7,30 @@
   <style>
     body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a2e; }
     canvas { max-width: 100%; max-height: 100%; }
-    #ui { position: absolute; color: white; font-family: 'Montserrat', sans-serif; }
+    #ui { position: absolute; color: white; font-family: 'Montserrat', sans-serif; top: 10px; left: 10px; }
+    #startScreen, #gameOverScreen { 
+      position: absolute; 
+      background: rgba(0, 0, 0, 0.8); 
+      color: white; 
+      text-align: center; 
+      padding: 20px; 
+      border-radius: 10px; 
+      display: none; 
+    }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
   </style>
 </head>
 <body>
-  <div id="ui">Score: <span id="score">0</span></div>
+  <div id="ui">Score: <span id="score">0</span> | High Score: <span id="highScore">0</span></div>
+  <div id="startScreen">
+    <h1>Cosmic Dash</h1>
+    <button id="startButton">Start</button>
+  </div>
+  <div id="gameOverScreen">
+    <h1>Game Over</h1>
+    <p>Score: <span id="finalScore">0</span></p>
+    <button id="restartButton">Restart</button>
+  </div>
   <canvas id="gameCanvas"></canvas>
   <script src="game.js"></script>
 </body>
