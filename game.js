@@ -11,21 +11,34 @@ const restartButton = document.getElementById('restartButton');
 canvas.width = Math.min(600, window.innerWidth * 0.9);
 canvas.height = Math.min(800, window.innerHeight * 0.9);
 
-let player = { x: 100, y: canvas.height / 2, size: 30, speed: 5 };
+// Player with momentum
+let player = { 
+  x: 100, 
+  y: canvas.height / 2, 
+  size: 20, 
+  speed: 5, 
+  vx: 0, 
+  vy: 0, 
+  friction: 0.9, 
+  shield: false, 
+  shieldTime: 0 
+};
 let obstacles = [];
 let stars = [];
+let particles = [];
 let score = 0;
 let highScore = localStorage.getItem('highScore') || 0;
 let gameSpeed = 2;
 let gameRunning = false;
+let backgroundStars = [];
 
 highScoreDisplay.textContent = highScore;
 
+// Input handling
 let keys = {};
 window.addEventListener('keydown', (e) => keys[e.key] = true);
 window.addEventListener('keyup', (e) => keys[e.key] = false);
-
-canvas.addEventListener('touchstart', (e) => player.y -= 50);
+canvas.addEventListener('touchstart', (e) => player.vy -= 10);
 canvas.addEventListener('touchmove', (e) => {
   const touch = e.touches[0];
   player.x = touch.clientX - canvas.offsetLeft;
@@ -35,12 +48,23 @@ canvas.addEventListener('touchmove', (e) => {
 startButton.addEventListener('click', startGame);
 restartButton.addEventListener('click', startGame);
 
+// Initialize background stars
+for (let i = 0; i < 100; i++) {
+  backgroundStars.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    size: Math.random() * 2 + 1,
+    speed: Math.random() * 2 + 1
+  });
+}
+
 function startGame() {
   startScreen.style.display = 'none';
   gameOverScreen.style.display = 'none';
-  player = { x: 100, y: canvas.height / 2, size: 30, speed: 5 };
+  player = { x: 100, y: canvas.height / 2, size: 20, speed: 5, vx: 0, vy: 0, friction: 0.9, shield: false, shieldTime: 0 };
   obstacles = [];
   stars = [];
+  particles = [];
   score = 0;
   gameSpeed = 2;
   scoreDisplay.textContent = score;
@@ -49,10 +73,12 @@ function startGame() {
 }
 
 function spawnObstacle() {
+  let size = 30 + Math.random() * 30;
   obstacles.push({
-    x: canvas.width,
-    y: Math.random() * (canvas.height - 50),
-    size: 40 + Math.random() * 20
+    x: canvas.width + size,
+    y: Math.random() * (canvas.height - size),
+    size: size,
+    speed: gameSpeed + Math.random() * 2
   });
 }
 
@@ -60,44 +86,100 @@ function spawnStar() {
   stars.push({
     x: canvas.width,
     y: Math.random() * (canvas.height - 20),
-    size: 20
+    size: 15,
+    angle: 0
   });
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5,
+      size: Math.random() * 5 + 2,
+      life: 20,
+      color: color
+    });
+  }
 }
 
 function update() {
   if (!gameRunning) return;
 
-  if (keys['ArrowUp']) player.y -= player.speed;
-  if (keys['ArrowDown']) player.y += player.speed;
-  if (keys['ArrowLeft']) player.x -= player.speed;
-  if (keys['ArrowRight']) player.x += player.speed;
-  if (keys[' ']) player.y -= 50;
+  // Player movement with momentum
+  if (keys['ArrowUp']) player.vy -= 1;
+  if (keys['ArrowDown']) player.vy += 1;
+  if (keys['ArrowLeft']) player.vx -= 1;
+  if (keys['ArrowRight']) player.vx += 1;
+  if (keys[' ']) player.vy -= 10;
+
+  player.vx *= player.friction;
+  player.vy *= player.friction;
+  player.x += player.vx;
+  player.y += player.vy;
 
   player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
   player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
-  obstacles.forEach(o => o.x -= gameSpeed);
-  stars.forEach(s => s.x -= gameSpeed);
+  // Update obstacles and stars
+  obstacles.forEach(o => o.x -= o.speed);
+  stars.forEach(s => {
+    s.x -= gameSpeed;
+    s.angle += 0.1;
+  });
 
-  obstacles.forEach(o => {
+  // Shield timer
+  if (player.shield) {
+    player.shieldTime--;
+    if (player.shieldTime <= 0) player.shield = false;
+  }
+
+  // Collision detection
+  obstacles.forEach((o, i) => {
     if (checkCollision(player, o)) {
-      gameRunning = false;
-      endGame();
+      if (!player.shield) {
+        gameRunning = false;
+        spawnParticles(player.x, player.y, 'red', 20);
+        endGame();
+      } else {
+        obstacles.splice(i, 1);
+        spawnParticles(o.x, o.y, 'gray', 10);
+      }
     }
   });
   stars = stars.filter(s => {
     if (checkCollision(player, s)) {
-      score += 1;
+      score += 5;
+      if (Math.random() < 0.1) { // 10% chance for shield power-up
+        player.shield = true;
+        player.shieldTime = 100;
+      }
+      spawnParticles(s.x, s.y, 'yellow', 10);
       scoreDisplay.textContent = score;
       return false;
     }
     return true;
   });
 
-  if (Math.random() < 0.02) spawnObstacle();
-  if (Math.random() < 0.01) spawnStar();
+  // Spawn logic
+  if (Math.random() < 0.03) spawnObstacle();
+  if (Math.random() < 0.015) spawnStar();
 
-  gameSpeed += 0.001;
+  gameSpeed += 0.002;
+
+  // Update particles and background stars
+  particles = particles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    return p.life > 0;
+  });
+  backgroundStars.forEach(s => {
+    s.x -= s.speed;
+    if (s.x < 0) s.x = canvas.width;
+  });
 
   obstacles = obstacles.filter(o => o.x + o.size > 0);
   stars = stars.filter(s => s.x + s.size > 0);
@@ -107,32 +189,54 @@ function update() {
 }
 
 function draw() {
-  // Draw background
+  // Draw scrolling starfield
   ctx.fillStyle = '#1a1a2e';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // Add some static stars for depth
   ctx.fillStyle = 'white';
-  for (let i = 0; i < 50; i++) {
-    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
-  }
+  backgroundStars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
-  // Draw player as a circle instead of a square
-  ctx.fillStyle = 'white';
+  // Draw particles
+  particles.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  });
+
+  // Draw player (circle with shield effect)
+  ctx.fillStyle = player.shield ? 'cyan' : 'white';
   ctx.beginPath();
   ctx.arc(player.x + player.size / 2, player.y + player.size / 2, player.size / 2, 0, Math.PI * 2);
   ctx.fill();
 
-  // Draw obstacles
+  // Draw obstacles (circles)
   ctx.fillStyle = 'gray';
-  obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.size, o.size));
+  obstacles.forEach(o => {
+    ctx.beginPath();
+    ctx.arc(o.x + o.size / 2, o.y + o.size / 2, o.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  });
 
-  // Draw stars
+  // Draw stars (rotating star shape)
   ctx.fillStyle = 'yellow';
-  stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+  stars.forEach(s => {
+    ctx.save();
+    ctx.translate(s.x + s.size / 2, s.y + s.size / 2);
+    ctx.rotate(s.angle);
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      ctx.lineTo(Math.cos(Math.PI * 2 * i / 5) * s.size, Math.sin(Math.PI * 2 * i / 5) * s.size);
+      ctx.lineTo(Math.cos(Math.PI * 2 * (i + 0.5) / 5) * s.size / 2, Math.sin(Math.PI * 2 * (i + 0.5) / 5) * s.size / 2);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
 }
 
 function checkCollision(a, b) {
-  return a.x < b.x + b.size && a.x + a.size > b.x && a.y < b.y + b.size && a.y + a.size > b.y;
+  const dx = (a.x + a.size / 2) - (b.x + b.size / 2);
+  const dy = (a.y + a.size / 2) - (b.y + b.size / 2);
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  return distance < (a.size / 2 + b.size / 2);
 }
 
 function endGame() {
@@ -145,4 +249,4 @@ function endGame() {
   gameOverScreen.style.display = 'block';
 }
 
-startScreen.style.display = 'block'; // Show start screen initially
+startScreen.style.display = 'block';
